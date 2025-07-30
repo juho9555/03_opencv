@@ -46,7 +46,13 @@ while True:
 
     h, w, _ = frame.shape
     x, y = w // 2 - 50, h // 2 - 50
-    roi = frame[y:y+100, x:x+100]
+
+    cv2.rectangle(frame, (x, y), (x+100, y+100), (0, 255, 0), 2)
+
+    roi = frame[y:y+250, x:x+250]
+
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame_display.set_data(rgb_frame)
     
     # 각 채널(BGR)의 히스토그램 계산 (정규화 없이)
     for i, line in enumerate(lines):
