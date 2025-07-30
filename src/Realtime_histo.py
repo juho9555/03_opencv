@@ -2,34 +2,33 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.ion()  # 인터랙티브 모드 켜기
+plt.ion()
 
-# Figure 및 subplot 구성
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
 
-# 웹캠 이미지용 subplot
 frame_display = ax1.imshow(np.zeros((480, 640, 3), dtype=np.uint8))
 ax1.set_title("Webcam")
 ax1.axis('off')
 
-# 히스토그램용 subplot 초기화
+# HSV 히스토그램용 subplot 초기화
 lines = []
-colors = ['b', 'g', 'r']
+colors = ['m', 'c', 'y']  # H, S, V
+labels = ['Hue', 'Saturation', 'Value']  # 범례용 텍스트
+
 for color in colors:
     line, = ax2.plot(np.zeros(256), color=color)
     lines.append(line)
 
-# 히스토그램 축 설정
-ax2.set_title("BGR Histogram")
-ax2.set_xlabel("Pixel Intensity")  # x축 레이블
-ax2.set_ylabel("Frequency")        # y축 레이블
+ax2.set_title("HSV Histogram")
+ax2.set_xlabel("Pixel Intensity")
+ax2.set_ylabel("Frequency")
 ax2.set_xlim(0, 256)
-ax2.set_ylim(0, 5000)  # 픽셀 개수 기준으로 설정 (적절히 조정 가능)
+ax2.set_ylim(0, 5000)
 
-# 카메라 연결
+# 범례 추가
+ax2.legend(labels, loc='upper right')
+
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
-
 if not cap.isOpened():
     print("카메라를 열 수 없습니다.")
     exit()
@@ -40,29 +39,26 @@ while True:
         print("프레임을 읽을 수 없습니다.")
         break
 
-    frame = cv2.flip(frame, 1)  # 좌우 반전
+    frame = cv2.flip(frame, 1)
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     frame_display.set_data(rgb_frame)
 
     h, w, _ = frame.shape
     x, y = w // 2 - 50, h // 2 - 50
-
     cv2.rectangle(frame, (x, y), (x+100, y+100), (0, 255, 0), 2)
+    roi = frame[y:y+100, x:x+100]
 
-    roi = frame[y:y+250, x:x+250]
+    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    h_channel, s_channel, v_channel = cv2.split(hsv_roi)
+
+    for i, channel in enumerate([h_channel, s_channel, v_channel]):
+        hist = cv2.calcHist([channel], [0], None, [256], [0, 256])
+        lines[i].set_ydata(hist.ravel())
+
+    ax2.set_ylim(0, max([np.max(line.get_ydata()) for line in lines]) * 1.1)
 
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     frame_display.set_data(rgb_frame)
-    
-    # 각 채널(BGR)의 히스토그램 계산 (정규화 없이)
-    for i, line in enumerate(lines):
-        hist = cv2.calcHist([roi], [i], None, [256], [0, 256])
-        hist = hist.ravel()
-        line.set_ydata(hist)
-
-    # y축 크기 자동 조정 (선택사항)
-    ax2.set_ylim(0, max([np.max(line.get_ydata()) for line in lines]) * 1.1)
-
     fig.canvas.draw()
     fig.canvas.flush_events()
 
