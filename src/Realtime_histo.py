@@ -2,30 +2,24 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.ion()
+plt.ion()  # 인터랙티브 모드 (실시간 업데이트용)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-
+# Matplotlib 창 구성
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 frame_display = ax1.imshow(np.zeros((480, 640, 3), dtype=np.uint8))
-ax1.set_title("Webcam")
+ax1.set_title("Webcam (Center_line Contour)")
 ax1.axis('off')
 
-# HSV 히스토그램용 subplot 초기화
-lines = []
-colors = ['m', 'c', 'y']  # H, S, V
-labels = ['Hue', 'Saturation', 'Value']  # 범례용 텍스트
-
-for color in colors:
-    line, = ax2.plot(np.zeros(256), color=color)
-    lines.append(line)
+# HSV 히스토그램 초기화
+colors = ['m', 'c', 'y']  # H: magenta, S: cyan, V: yellow
+labels = ['Hue', 'Saturation', 'Value']
+lines = [ax2.plot(np.zeros(256), color=color)[0] for color in colors]
 
 ax2.set_title("HSV Histogram")
 ax2.set_xlabel("Pixel Intensity")
 ax2.set_ylabel("Frequency")
 ax2.set_xlim(0, 256)
-ax2.set_ylim(0, 5000)
-
-# 범례 추가
+ax2.set_ylim(0, 1000)
 ax2.legend(labels, loc='upper right')
 
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
@@ -36,33 +30,45 @@ if not cap.isOpened():
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("프레임을 읽을 수 없습니다.")
         break
 
-    frame = cv2.flip(frame, 1)
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame_display.set_data(rgb_frame)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    h, w, _ = frame.shape
-    x, y = w // 2 - 50, h // 2 - 50
-    cv2.rectangle(frame, (x, y), (x+100, y+100), (0, 255, 0), 2)
-    roi = frame[y:y+100, x:x+100]
+    # 마스크 생성 (검정색 범위): H, S, V 각각 임계값 조정
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([180, 255, 50])
+    mask = cv2.inRange(hsv, lower_black, upper_black)
 
-    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-    h_channel, s_channel, v_channel = cv2.split(hsv_roi)
+    # 윤곽선 찾기
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    roi = None
 
-    for i, channel in enumerate([h_channel, s_channel, v_channel]):
-        hist = cv2.calcHist([channel], [0], None, [256], [0, 256])
-        lines[i].set_ydata(hist.ravel())
+    if contours:
+        # 가장 큰 contour 선택 (중앙선일 확률 높음)
+        largest = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(largest)
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
-    ax2.set_ylim(0, max([np.max(line.get_ydata()) for line in lines]) * 1.1)
+        # ROI 추출
+        roi = frame[y:y+h, x:x+w]
 
+        hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        h_channel, s_channel, v_channel = cv2.split(hsv_roi)
+
+        for i, channel in enumerate([h_channel, s_channel, v_channel]):
+            hist = cv2.calcHist([channel], [0], None, [256], [0, 256])
+            lines[i].set_ydata(hist.ravel())
+
+        # Y축 자동조절
+        ax2.set_ylim(0, max([np.max(line.get_ydata()) for line in lines]) * 1.1)
+
+    # 웹캠 이미지 업데이트
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     frame_display.set_data(rgb_frame)
     fig.canvas.draw()
     fig.canvas.flush_events()
 
-    if plt.get_fignums() == []:
+    if plt.get_fignums() == []:  # 창 닫으면 종료
         break
 
 cap.release()
