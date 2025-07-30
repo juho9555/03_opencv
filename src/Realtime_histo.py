@@ -45,8 +45,12 @@ while True:
     # Contour 검출
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+    min_area = 500 # 컨투어의 최소면적 (다른 검정색 선을 인식하지 못하게하기 위함)
+
+    valid_contours = [cnt for cnt in contours if cv2.contourArea(cnt) > min_area]
+
     # 가장 큰 컨투어만 추출
-    if contours:
+    if valid_contours:
         largest = max(contours, key=cv2.contourArea)
         cv2.drawContours(frame, [largest], -1, (0, 255, 0), 2)
 
